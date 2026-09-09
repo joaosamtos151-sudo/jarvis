@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>J.A.R.V.I.S.</title>
+<style>
+  :root{
+    --bg:#060a10;
+    --panel:#0d141d;
+    --panel-border:#1c2b3a;
+    --accent:#5eead4;
+    --accent-dim:#1f5f56;
+    --warn:#f5a623;
+    --text:#dbe7f0;
+    --text-dim:#61798c;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; margin:0; overscroll-behavior:none;}
+  body{
+    background:
+      radial-gradient(ellipse at 50% -10%, #0c1620 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:var(--sans);
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    overflow:hidden;
+  }
+
+  /* Top bar */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 18px 10px;
+    border-bottom:1px solid var(--panel-border);
+    flex-shrink:0;
+  }
+  .brand{
+    font-family:var(--mono);
+    font-size:13px;
+    letter-spacing:0.14em;
+    color:var(--accent);
+  }
+  .brand span{color:var(--text-dim);}
+  .gear{
+    background:none; border:1px solid var(--panel-border); color:var(--text-dim);
+    width:32px; height:32px; border-radius:6px; font-size:15px; cursor:pointer;
+  }
+
+  /* Core visual */
+  .core-wrap{
+    flex-shrink:0;
+    display:flex; flex-direction:column; align-items:center;
+    padding:22px 0 10px;
+  }
+  .core{
+    position:relative;
+    width:104px; height:104px;
+  }
+  .ring{
+    position:absolute; inset:0;
+    border-radius:50%;
+    border:1px solid var(--panel-border);
+  }
+  .ring.r2{ inset:14px; }
+  .ring.r3{ inset:28px; background:radial-gradient(circle, rgba(94,234,212,0.18), transparent 70%); }
+  .core.listening .ring{ border-color:var(--accent); animation:pulse 1.4s ease-in-out infinite; }
+  .core.thinking .ring{ border-color:var(--warn); animation:spin 2.2s linear infinite; }
+  .core.speaking .ring{ border-color:var(--accent); animation:pulse 0.7s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:.5; transform:scale(1);} 50%{opacity:1; transform:scale(1.06);} }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .status{
+    margin-top:10px;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.16em;
+    color:var(--text-dim);
+    text-transform:uppercase;
+  }
+
+  /* Transcript */
+  .transcript{
+    flex:1;
+    overflow-y:auto;
+    padding:6px 16px 10px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .msg{ max-width:88%; }
+  .msg .who{
+    font-family:var(--mono); font-size:10px; letter-spacing:0.12em;
+    color:var(--text-dim); margin-bottom:3px; text-transform:uppercase;
+  }
+  .msg .body{ font-size:15px; line-height:1.45; white-space:pre-wrap; }
+  .msg.user{ align-self:flex-end; text-align:right; border-right:2px solid var(--panel-border); padding-right:10px; }
+  .msg.ai{ align-self:flex-start; border-left:2px solid var(--accent-dim); padding-left:10px; }
+  .empty-hint{
+    margin:auto; text-align:center; color:var(--text-dim); font-size:13px; padding:0 30px; line-height:1.6;
+  }
+
+  /* Controls */
+  .controls{
+    flex-shrink:0;
+    border-top:1px solid var(--panel-border);
+    padding:10px 12px calc(12px + env(safe-area-inset-bottom));
+    display:flex; gap:8px; align-items:flex-end;
+    background:var(--bg);
+  }
+  textarea{
+    flex:1; resize:none; max-height:90px;
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:8px;
+    color:var(--text); font-size:15px; padding:10px 12px; font-family:var(--sans);
+  }
+  textarea:focus{ outline:none; border-color:var(--accent-dim); }
+  button.icon-btn{
+    flex-shrink:0; width:44px; height:44px; border-radius:8px;
+    border:1px solid var(--panel-border); background:var(--panel);
+    color:var(--text); font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  button.icon-btn.mic.active{ border-color:var(--accent); color:var(--accent); background:rgba(94,234,212,0.08); }
+  button.icon-btn.send{ border-color:var(--accent-dim); color:var(--accent); }
+
+  /* Settings panel */
+  .overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.6);
+    display:none; align-items:flex-end; justify-content:center; z-index:10;
+  }
+  .overlay.open{ display:flex; }
+  .sheet{
+    width:100%; max-width:480px; background:var(--panel); border-top:1px solid var(--panel-border);
+    border-radius:14px 14px 0 0; padding:18px 18px calc(20px + env(safe-area-inset-bottom));
+  }
+  .sheet h3{ margin:0 0 14px; font-family:var(--mono); font-size:13px; letter-spacing:0.1em; color:var(--accent); text-transform:uppercase; }
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-size:11px; color:var(--text-dim); margin-bottom:5px; font-family:var(--mono); letter-spacing:0.08em; }
+  .field input{
+    width:100%; background:var(--bg); border:1px solid var(--panel-border); border-radius:6px;
+    color:var(--text); padding:9px 10px; font-size:14px;
+  }
+  .sheet-actions{ display:flex; gap:10px; margin-top:16px; }
+  .sheet-actions button{
+    flex:1; padding:11px; border-radius:8px; font-size:14px; cursor:pointer; border:1px solid var(--panel-border);
+  }
+  .btn-save{ background:var(--accent-dim); color:#04120f; border-color:var(--accent-dim); font-weight:600; }
+  .btn-clear{ background:transparent; color:var(--warn); border-color:var(--warn); }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand" id="brandLabel">J.A.R.V.I.S. <span>· offline core</span></div>
+    <button class="gear" id="openSettings">⚙</button>
+  </div>
+
+  <div class="core-wrap">
+    <div class="core" id="core">
+      <div class="ring"></div>
+      <div class="ring r2"></div>
+      <div class="ring r3"></div>
+    </div>
+    <div class="status" id="statusLabel">pronto</div>
+  </div>
+
+  <div class="transcript" id="transcript">
+    <div class="empty-hint" id="emptyHint">Toque no microfone ou digite abaixo para começar.<br>Eu guardo o histórico da conversa neste aparelho.</div>
+  </div>
+
+  <div class="controls">
+    <button class="icon-btn mic" id="micBtn" title="Falar">🎙</button>
+    <textarea id="textInput" rows="1" placeholder="Escreva um comando..."></textarea>
+    <button class="icon-btn send" id="sendBtn" title="Enviar">➤</button>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="sheet">
+      <h3>Configurações</h3>
+      <div class="field">
+        <label>Nome do assistente</label>
+        <input id="assistantName" placeholder="Jarvis">
+      </div>
+      <div class="field">
+        <label>Como devo te chamar</label>
+        <input id="userName" placeholder="Seu nome">
+      </div>
+      <div class="field">
+        <label>Personalidade / instruções extras (opcional)</label>
+        <input id="persona" placeholder="Ex: seja direto, use humor seco">
+      </div>
+      <div class="sheet-actions">
+        <button class="btn-clear" id="clearMemBtn">Apagar memória</button>
+        <button class="btn-save" id="saveSettingsBtn">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const transcriptEl = document.getElementById('transcript');
+  const emptyHint = document.getElementById('emptyHint');
+  const textInput = document.getElementById('textInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const micBtn = document.getElementById('micBtn');
+  const core = document.getElementById('core');
+  const statusLabel = document.getElementById('statusLabel');
+  const brandLabel = document.getElementById('brandLabel');
+  const overlay = document.getElementById('overlay');
+
+  let profile = { assistantName: 'Jarvis', userName: '', persona: '' };
+  let history = []; // {role, content}
+
+  function setStatus(state){
+    core.className = 'core' + (state ? ' ' + state : '');
+    const labels = { listening:'ouvindo', thinking:'processando', speaking:'respondendo', '':'pronto' };
+    statusLabel.textContent = labels[state] || 'pronto';
+  }
+
+  function renderBrand(){
+    brandLabel.innerHTML = (profile.assistantName || 'Jarvis').toUpperCase() + ' <span>· núcleo local</span>';
+  }
+
+  function addMessage(role, content){
+    emptyHint.style.display = 'none';
+    const div = document.createElement('div');
+    div.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
+    const who = document.createElement('div');
+    who.className = 'who';
+    who.textContent = role === 'user' ? (profile.userName || 'você') : (profile.assistantName || 'jarvis');
+    const body = document.createElement('div');
+    body.className = 'body';
+    body.textContent = content;
+    div.appendChild(who); div.appendChild(body);
+    transcriptEl.appendChild(div);
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  }
+
+  async function loadState(){
+    try{
+      const p = await window.storage.get('jarvis-profile');
+      if(p && p.value) profile = JSON.parse(p.value);
+    }catch(e){}
+    try{
+      const h = await window.storage.get('jarvis-history');
+      if(h && h.value) history = JSON.parse(h.value);
+    }catch(e){}
+    renderBrand();
+    document.getElementById('assistantName').value = profile.assistantName || '';
+    document.getElementById('userName').value = profile.userName || '';
+    document.getElementById('persona').value = profile.persona || '';
+    if(history.length){
+      history.forEach(m => addMessage(m.role === 'user' ? 'user' : 'ai', m.content));
+    }
+  }
+
+  async function saveProfile(){
+    try{ await window.storage.set('jarvis-profile', JSON.stringify(profile)); }catch(e){}
+  }
+  async function saveHistory(){
+    try{ await window.storage.set('jarvis-history', JSON.stringify(history)); }catch(e){}
+  }
+
+  function speak(text){
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const clean = text.replace(/[*_#`]/g, '');
+    const utter = new SpeechSynthesisUtterance(clean);
+    utter.lang = 'pt-BR';
+    utter.rate = 1.02;
+    utter.onstart = () => setStatus('speaking');
+    utter.onend = () => setStatus('');
+    window.speechSynthesis.speak(utter);
+  }
+
+  async function askAI(userText){
+    addMessage('user', userText);
+    history.push({ role:'user', content:userText });
+    saveHistory();
+    setStatus('thinking');
+
+    const sys = 'Você é ' + (profile.assistantName || 'Jarvis') + ', um assistente pessoal de IA falado em português do Brasil, inspirado em assistentes sofisticados de ficção: direto, proativo, levemente espirituoso, mas sempre útil e objetivo. ' +
+      (profile.userName ? ('Chame o usuário de ' + profile.userName + '. ') : '') +
+      (profile.persona ? ('Instruções extras de personalidade: ' + profile.persona + '. ') : '') +
+      'Responda de forma curta e natural, como em uma conversa falada, evitando listas longas a menos que seja pedido.';
+
+    try{
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          model:'claude-sonnet-4-6',
+          max_tokens:1000,
+          system: sys,
+          messages: history.slice(-20).map(m => ({ role:m.role, content:m.content }))
+        })
+      });
+      const data = await resp.json();
+      const textBlock = (data.content || []).find(b => b.type === 'text');
+      const reply = textBlock ? textBlock.text : 'Não consegui gerar uma resposta agora.';
+      addMessage('ai', reply);
+      history.push({ role:'assistant', content:reply });
+      saveHistory();
+      speak(reply);
+    }catch(err){
+      addMessage('ai', 'Falha na conexão. Tente novamente em instantes.');
+      setStatus('');
+    }
+  }
+
+  // Text send
+  function handleSend(){
+    const val = textInput.value.trim();
+    if(!val) return;
+    textInput.value = '';
+    textInput.style.height = 'auto';
+    askAI(val);
+  }
+  sendBtn.addEventListener('click', handleSend);
+  textInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); handleSend(); }
+  });
+  textInput.addEventListener('input', () => {
+    textInput.style.height = 'auto';
+    textInput.style.height = Math.min(textInput.scrollHeight, 90) + 'px';
+  });
+
+  // Voice
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognizing = false;
+  let recognizer = null;
+  if(SR){
+    recognizer = new SR();
+    recognizer.lang = 'pt-BR';
+    recognizer.interimResults = false;
+    recognizer.maxAlternatives = 1;
+
+    recognizer.onstart = () => { recognizing = true; micBtn.classList.add('active'); setStatus('listening'); };
+    recognizer.onend = () => { recognizing = false; micBtn.classList.remove('active'); if(statusLabel.textContent === 'ouvindo') setStatus(''); };
+    recognizer.onerror = () => { recognizing = false; micBtn.classList.remove('active'); setStatus(''); };
+    recognizer.onresult = (event) => {
+      const said = event.results[0][0].transcript;
+      if(said && said.trim()) askAI(said.trim());
+    };
+
+    micBtn.addEventListener('click', () => {
+      if(recognizing){ recognizer.stop(); return; }
+      window.speechSynthesis.cancel();
+      try{ recognizer.start(); }catch(e){}
+    });
+  } else {
+    micBtn.addEventListener('click', () => {
+      alert('Reconhecimento de voz não disponível neste navegador. Abra este arquivo no Chrome para usar o microfone.');
+    });
+  }
+
+  // Settings sheet
+  document.getElementById('openSettings').addEventListener('click', () => overlay.classList.add('open'));
+  overlay.addEventListener('click', (e) => { if(e.target === overlay) overlay.classList.remove('open'); });
+  document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+    profile.assistantName = document.getElementById('assistantName').value.trim() || 'Jarvis';
+    profile.userName = document.getElementById('userName').value.trim();
+    profile.persona = document.getElementById('persona').value.trim();
+    await saveProfile();
+    renderBrand();
+    overlay.classList.remove('open');
+  });
+  document.getElementById('clearMemBtn').addEventListener('click', async () => {
+    if(!confirm('Apagar todo o histórico de conversa salvo neste aparelho?')) return;
+    history = [];
+    await saveHistory();
+    transcriptEl.innerHTML = '';
+    transcriptEl.appendChild(emptyHint);
+    emptyHint.style.display = 'block';
+    overlay.classList.remove('open');
+  });
+
+  loadState();
+})();
+</script>
+</body>
+</html>
